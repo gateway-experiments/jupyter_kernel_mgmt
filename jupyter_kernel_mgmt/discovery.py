@@ -3,16 +3,10 @@ import entrypoints
 import logging
 import six
 
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # JSONDecodeError is new in Python 3.5, so while we support 3.4:
-    JSONDecodeError = ValueError
-
-from .kernelspec import KernelSpecManager, KernelSpec
 from .subproc import SubprocessKernelLauncher
 
 log = logging.getLogger(__name__)
+
 
 class KernelProviderBase(six.with_metaclass(ABCMeta, object)):
     id = None  # Should be a short string identifying the provider class.
@@ -43,40 +37,6 @@ class KernelProviderBase(six.with_metaclass(ABCMeta, object)):
         """
         raise NotImplementedError()
 
-class KernelSpecProvider(KernelProviderBase):
-    """Offers kernel types from installed kernelspec directories.
-    """
-    id = 'spec'
-
-    def __init__(self, search_path=None):
-        self.ksm = KernelSpecManager(kernel_dirs=search_path)
-
-    def find_kernels(self):
-        for name, resdir in self.ksm.find_kernel_specs().items():
-            try:
-                spec = KernelSpec.from_resource_dir(resdir)
-            except JSONDecodeError:
-                log.warning("Failed to parse kernelspec in %s", resdir)
-                continue
-
-            yield name, {
-                # TODO: get full language info
-                'language_info': {'name': spec.language},
-                'display_name': spec.display_name,
-                'argv': spec.argv,
-                'resource_dir': spec.resource_dir,
-            }
-
-    def launch(self, name, cwd=None):
-        spec = self.ksm.get_kernel_spec(name)
-        launcher = SubprocessKernelLauncher(kernel_cmd=spec.argv, extra_env=spec.env, cwd=cwd)
-        return launcher.launch()
-
-    def launch_async(self, name, cwd=None):
-        from .subproc.async_manager import AsyncSubprocessKernelLauncher
-        spec = self.ksm.get_kernel_spec(name)
-        return AsyncSubprocessKernelLauncher(
-            kernel_cmd=spec.argv, extra_env=spec.env, cwd=cwd).launch()
 
 class IPykernelProvider(KernelProviderBase):
     """Offers a kernel type using the Python interpreter it's running in.
@@ -125,6 +85,7 @@ class IPykernelProvider(KernelProviderBase):
             raise Exception("ipykernel is not importable")
         return AsyncSubprocessKernelLauncher(
             kernel_cmd=info['spec']['argv'], extra_env={}, cwd=cwd).launch()
+
 
 class KernelFinder(object):
     """Manages a collection of kernel providers to find available kernel types
@@ -182,10 +143,12 @@ class KernelFinder(object):
                 return provider.launch_async(kernel_id, cwd)
         raise KeyError(provider_id)
 
+
 def main():
     kf = KernelFinder.from_entrypoints()
     for type_id, info in kf.find_kernels():
         print(type_id)
+
 
 if __name__ == '__main__':
     main()

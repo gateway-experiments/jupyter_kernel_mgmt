@@ -67,6 +67,7 @@ setup_args = dict(
         'pyzmq>=13',
         'python-dateutil>=2.1',
         'entrypoints',
+        'six',
     ],
     extras_require   = {
         'test': ['ipykernel', 'ipython', 'mock', 'pytest'],
@@ -82,7 +83,7 @@ setup_args = dict(
             # 'jupyter-kernel = jupyter_kernel_mgmt.kernelapp:main',
         ],
         'jupyter_kernel_mgmt.kernel_type_providers' : [
-            'spec = jupyter_kernel_mgmt.discovery:KernelSpecProvider',
+            'spec = jupyter_kernel_mgmt.kernelspec:KernelSpecProvider',
             'pyimport = jupyter_kernel_mgmt.discovery:IPykernelProvider',
         ]
     },
