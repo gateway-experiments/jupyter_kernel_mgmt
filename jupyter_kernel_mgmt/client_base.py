@@ -7,7 +7,6 @@ from __future__ import absolute_import, print_function
 
 import time
 
-from traitlets.log import get_logger as get_app_logger
 from jupyter_protocol.messages import (
     Message, execute_request, complete_request, inspect_request,
     history_request, kernel_info_request, comm_info_request, shutdown_request,
@@ -15,6 +14,8 @@ from jupyter_protocol.messages import (
 )
 from jupyter_protocol.sockets import ClientMessaging
 from jupyter_protocol._version import protocol_version_info
+from traitlets.log import get_logger as get_app_logger
+from typing import Any, Dict, Optional
 from .managerabc import KernelManagerABC
 
 monotonic = time.monotonic
@@ -23,11 +24,11 @@ major_protocol_version = protocol_version_info[0]
 
 
 class ManagerClient(KernelManagerABC):
-    def __init__(self, messaging, connection_info):
+    def __init__(self, messaging: ClientMessaging, connection_info: Dict[str, Any]) -> None:
         self.messaging = messaging
         self.connection_info = connection_info
 
-    def is_alive(self):
+    def is_alive(self) -> None:
         """Check whether the kernel is currently alive (e.g. the process exists)
         """
         msg = Message.from_type('is_alive_request', {})
@@ -39,7 +40,7 @@ class ManagerClient(KernelManagerABC):
             if reply.parent_header['msg_id'] == msg.header['msg_id']:
                 return reply.content['alive']
 
-    def wait(self, timeout):
+    def wait(self, timeout: Optional[float] = None) -> bool:
         """Wait for the kernel process to exit.
 
         If timeout is a number, it is a maximum time in seconds to wait.
@@ -76,11 +77,11 @@ class ManagerClient(KernelManagerABC):
 
         return True
 
-    def signal(self, signum):
+    def signal(self, signum: int) -> None:
         """Send a signal to the kernel."""
         raise NotImplementedError
 
-    def interrupt(self):
+    def interrupt(self) -> None:
         """Interrupt the kernel by sending it a signal or similar event
 
         Kernels can request to get interrupts as messages rather than signals.
@@ -91,7 +92,7 @@ class ManagerClient(KernelManagerABC):
         msg = Message.from_type('interrupt_request', {})
         self.messaging.send('nanny_control', msg)
 
-    def kill(self):
+    def kill(self) -> None:
         """Forcibly terminate the kernel.
 
         This method may be used to dispose of a kernel that won't shut down.
@@ -101,7 +102,7 @@ class ManagerClient(KernelManagerABC):
         msg = Message.from_type('kill_request', {})
         self.messaging.send('nanny_control', msg)
 
-    def get_connection_info(self):
+    def get_connection_info(self) -> Dict[str, Any]:
         """Return a dictionary of connection information"""
         return self.connection_info
 
@@ -116,7 +117,11 @@ class KernelClient(object):
     """
     hb_monitor = None
 
-    def __init__(self, connection_info, manager=None, use_heartbeat=True):
+    def __init__(self,
+                 connection_info: Dict[str, Any],
+                 manager: Optional[KernelManagerABC] = None,
+                 using_heartbeat: bool = True):
+
         self.connection_info = connection_info
         self.messaging = ClientMessaging(connection_info)
         if (manager is None) and 'nanny_control_port' in connection_info:
@@ -133,11 +138,11 @@ class KernelClient(object):
         #     self.hb_monitor.start()
 
     @property
-    def owned_kernel(self):
+    def owned_kernel(self) -> bool:
         """True if this client 'owns' the kernel, i.e. started it."""
         return self.manager is not None
 
-    def close(self):
+    def close(self) -> None:
         """Close sockets of this client.
 
         After calling this, the client can no longer be used.
@@ -149,7 +154,7 @@ class KernelClient(object):
     # flag for whether execute requests should be allowed to call raw_input:
     allow_stdin = True
 
-    async def is_alive(self):
+    async def is_alive(self) -> bool:
         if self.owned_kernel:
             return await self.manager.is_alive()
         elif self.using_heartbeat:
@@ -161,9 +166,9 @@ class KernelClient(object):
         self.session.send(socket, msg)
 
     # Methods to send specific messages on channels
-    def execute(self, code, silent=False, store_history=True,
-                user_expressions=None, allow_stdin=None, stop_on_error=True,
-                _header=None):
+    def execute(self, code: str, silent: bool = False, store_history: bool = True,
+                user_expressions: Dict[str,str] = None, allow_stdin: Optional[bool] = None,
+                stop_on_error: bool = True, _header: Dict[str, Any] = None) -> str:
         """Execute code in the kernel.
 
         Parameters
@@ -193,6 +198,9 @@ class KernelClient(object):
 
         stop_on_error: bool, optional (default True)
             Flag whether to abort the execution queue, if an exception is encountered.
+
+        _header: dict, optional
+            Replace request header with this value.
 
         Returns
         -------
